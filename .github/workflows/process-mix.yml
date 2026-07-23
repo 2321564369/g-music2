@@ -1,0 +1,25 @@
+name: Process mix
+on:
+  repository_dispatch:
+    types: [process-mix]
+
+jobs:
+  build-mix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install python deps
+        run: pip install ytmusicapi supabase
+
+      - name: Run mix builder
+        env:
+          MIX_ID: ${{ github.event.client_payload.mix_id }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python process_mix.py
