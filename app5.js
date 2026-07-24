@@ -21,6 +21,10 @@ let currentArtist = null;
 
 let searchQuery = "";
 let sortMode = "none";
+let searchResults = [];         // live YouTube results for the current query
+let searching = false;
+let searchDebounceTimer = null;
+let pendingPlay = null;         // { youtube_id, title, artist, thumbnail } — auto-play once it lands in songs
 
 let queue = [];                 // ordered list of song ids for current context
 let currentIndex = -1;
@@ -100,6 +104,13 @@ function subscribeRealtime() {
     .on("postgres_changes", { event: "INSERT", schema: "public", table: "songs" }, (payload) => {
       songs.unshift(payload.new);
       toast(`Added: ${payload.new.artist} - ${payload.new.title}`, "success");
+
+      if (pendingPlay && payload.new.youtube_id === pendingPlay.youtube_id) {
+        pendingPlay = null;
+        queue = [payload.new.id, ...queue.filter((id) => id !== payload.new.id)];
+        playSong(payload.new.id);
+      }
+
       renderCurrentView();
     })
     .subscribe();
@@ -182,15 +193,6 @@ function getFilteredSongs() {
     list = list.filter((s) => ids.has(s.id));
   }
 
-  if (searchQuery.trim()) {
-    const q = searchQuery.toLowerCase();
-    list = list.filter(
-      (s) =>
-        (s.title || "").toLowerCase().includes(q) ||
-        (s.artist || "").toLowerCase().includes(q)
-    );
-  }
-
   if (sortMode === "artist") {
     list = [...list].sort((a, b) => (a.artist || "").localeCompare(b.artist || ""));
   } else if (sortMode === "album") {
@@ -204,9 +206,13 @@ function renderCurrentView() {
   sortMode = document.getElementById("sortSelect").value;
   const container = document.getElementById("songList");
 
+  if (searchQuery.trim()) {
+    renderSearchResults(container);
+    return;
+  }
+
   if (currentView === "artists" && !currentArtist) {
     renderArtistsGrid(container);
-    updateRequestPrompt([]);
     return;
   }
 
@@ -216,7 +222,6 @@ function renderCurrentView() {
   }
 
   const list = getFilteredSongs();
-  updateRequestPrompt(list);
 
   if (list.length === 0 && activeRequests.length === 0) {
     container.innerHTML = `<div class="empty"><p>Nothing here yet.</p></div>`;
@@ -227,12 +232,62 @@ function renderCurrentView() {
   container.innerHTML = "";
   for (const song of list) container.appendChild(renderSongRow(song));
 
-  // ghost rows for in-flight requests when viewing All Songs with no active search
-  if (currentView === "all" && !searchQuery.trim()) {
+  // ghost rows for in-flight requests while browsing All Songs (not searching)
+  if (currentView === "all") {
     for (const req of activeRequests) container.appendChild(renderGhostRow(req));
   }
 
   queue = list.map((s) => s.id);
+}
+
+function renderSearchResults(container) {
+  document.getElementById("requestPrompt").style.display = "none";
+
+  if (searching && searchResults.length === 0) {
+    container.innerHTML = `<div class="empty"><p>Searching YouTube Music...</p></div>`;
+    return;
+  }
+  if (searchResults.length === 0) {
+    container.innerHTML = `<div class="empty"><p>No results for "${escapeHtml(searchQuery)}".</p></div>`;
+    return;
+  }
+
+  container.innerHTML = "";
+  for (const result of searchResults) container.appendChild(renderSearchResultRow(result));
+  queue = [];
+}
+
+function renderSearchResultRow(result) {
+  const cached = songs.find((s) => s.youtube_id === result.youtube_id);
+  const isPending = pendingPlay && pendingPlay.youtube_id === result.youtube_id;
+
+  const div = document.createElement("div");
+  div.className = "song search-result";
+  div.onclick = (e) => {
+    if (e.target.closest(".songControls")) return;
+    playSearchResult(result, cached);
+  };
+
+  const thumbStyle = result.thumbnail ? `background-image:url('${result.thumbnail}')` : "";
+  const liked = cached && likedIds.has(cached.id);
+
+  div.innerHTML = `
+    <div class="thumb" style="${thumbStyle}">${isPending ? '<div class="mini-spinner"></div>' : ""}</div>
+    <div class="songInfo">
+      <div class="songTitle">${escapeHtml(result.title)}</div>
+      <div class="songMeta">${escapeHtml(result.artist)}${cached ? " · downloaded" : ""}</div>
+    </div>
+    <div class="songControls">
+      ${cached ? `<button class="likeBtn ${liked ? "liked" : ""}" title="Like"></button><button class="addBtn" title="Add to playlist">+</button>` : ""}
+    </div>
+  `;
+
+  if (cached) {
+    div.querySelector(".likeBtn").onclick = (e) => { e.stopPropagation(); toggleLikeSong(cached.id); };
+    div.querySelector(".addBtn").onclick = (e) => { e.stopPropagation(); openAddToPlaylistModal(cached.id); };
+  }
+
+  return div;
 }
 
 function renderSongRow(song) {
@@ -397,44 +452,75 @@ function renderRequestQueue() {
 function searchSongs() {
   searchQuery = document.getElementById("searchInput").value;
   document.getElementById("clearSearchBtn").style.display = searchQuery ? "inline-block" : "none";
+
+  clearTimeout(searchDebounceTimer);
+  const q = searchQuery.trim();
+
+  if (!q) {
+    searchResults = [];
+    searching = false;
+    renderCurrentView();
+    return;
+  }
+
+  searching = true;
+  renderCurrentView();
+
+  searchDebounceTimer = setTimeout(() => runYoutubeSearch(q), 400);
+}
+
+async function runYoutubeSearch(q) {
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/functions/v1/search-youtube?q=${encodeURIComponent(q)}`,
+      { headers: { Authorization: `Bearer ${SUPABASE_ANON_KEY}`, apikey: SUPABASE_ANON_KEY } }
+    );
+    const data = await res.json();
+    if (searchQuery.trim() !== q) return; // a newer keystroke superseded this search
+    searchResults = data.results || [];
+  } catch (e) {
+    toast("YouTube search failed: " + e.message, "error");
+    searchResults = [];
+  }
+  searching = false;
   renderCurrentView();
 }
 
 function clearSearch() {
   document.getElementById("searchInput").value = "";
   searchQuery = "";
+  searchResults = [];
+  searching = false;
   document.getElementById("clearSearchBtn").style.display = "none";
   renderCurrentView();
 }
 
-function updateRequestPrompt(matches) {
-  const prompt = document.getElementById("requestPrompt");
-  const q = searchQuery.trim();
-  if (!q || matches.length > 0 || currentView !== "all") {
-    prompt.style.display = "none";
+async function playSearchResult(result, cachedSong) {
+  if (cachedSong) {
+    if (!queue.includes(cachedSong.id)) queue = [cachedSong.id, ...queue];
+    playSong(cachedSong.id);
     return;
   }
-  document.getElementById("requestPromptText").textContent = `No local matches for "${q}".`;
-  prompt.style.display = "flex";
-}
 
-async function submitSearchRequest() {
-  const q = searchQuery.trim();
-  if (!q) return;
-  const btn = document.querySelector("#requestPrompt button");
-  btn.disabled = true;
-  btn.textContent = "Requesting...";
+  if (pendingPlay && pendingPlay.youtube_id === result.youtube_id) return; // already requested
 
-  const { error } = await sb.from("requests").insert({ query: q });
+  pendingPlay = result;
+  renderCurrentView();
 
-  btn.disabled = false;
-  btn.textContent = "Request download";
+  const { error } = await sb.from("requests").insert({
+    youtube_id: result.youtube_id,
+    title: result.title,
+    artist: result.artist,
+    thumbnail: result.thumbnail,
+    query: `${result.artist} - ${result.title}`,
+  });
 
   if (error) {
-    toast("Couldn't submit request: " + error.message, "error");
+    pendingPlay = null;
+    toast("Couldn't start download: " + error.message, "error");
+    renderCurrentView();
   } else {
-    toast(`Requested "${q}" — it'll appear here shortly.`, "success");
-    document.getElementById("requestPrompt").style.display = "none";
+    toast(`Downloading "${result.title}" — it'll play automatically.`, "success");
   }
 }
 
