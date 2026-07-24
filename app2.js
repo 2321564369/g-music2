@@ -5,7 +5,9 @@
 // loaded before this file, and the Supabase JS CDN script.
 // ============================================================
 
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+(function () {
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ---------- State ----------
 let songs = [];                 // all songs from the songs table
@@ -54,23 +56,23 @@ async function init() {
 }
 
 async function loadSongs() {
-  const { data, error } = await supabase.from("songs").select("*").order("uploaded_at", { ascending: false });
+  const { data, error } = await sb.from("songs").select("*").order("uploaded_at", { ascending: false });
   if (error) { toast("Couldn't load songs: " + error.message, "error"); return; }
   songs = data || [];
 }
 
 async function loadLikes() {
-  const { data, error } = await supabase.from("likes").select("song_id");
+  const { data, error } = await sb.from("likes").select("song_id");
   if (error) return;
   likedIds = new Set((data || []).map((r) => r.song_id));
 }
 
 async function loadPlaylists() {
-  const { data, error } = await supabase.from("playlists").select("*").order("created_at");
+  const { data, error } = await sb.from("playlists").select("*").order("created_at");
   if (error) return;
   playlists = data || [];
 
-  const { data: links } = await supabase.from("playlist_songs").select("*");
+  const { data: links } = await sb.from("playlist_songs").select("*");
   playlistSongIds = {};
   for (const p of playlists) playlistSongIds[p.id] = new Set();
   for (const row of links || []) {
@@ -80,7 +82,7 @@ async function loadPlaylists() {
 }
 
 async function loadActiveRequests() {
-  const { data, error } = await supabase
+  const { data, error } = await sb
     .from("requests")
     .select("*")
     .in("status", ["pending", "processing"])
@@ -94,7 +96,7 @@ async function loadActiveRequests() {
 // ============================================================
 
 function subscribeRealtime() {
-  supabase
+  sb
     .channel("songs-feed")
     .on("postgres_changes", { event: "INSERT", schema: "public", table: "songs" }, (payload) => {
       songs.unshift(payload.new);
@@ -103,7 +105,7 @@ function subscribeRealtime() {
     })
     .subscribe();
 
-  supabase
+  sb
     .channel("requests-feed")
     .on("postgres_changes", { event: "*", schema: "public", table: "requests" }, (payload) => {
       if (payload.eventType === "INSERT" && ["pending", "processing"].includes(payload.new.status)) {
@@ -424,7 +426,7 @@ async function submitSearchRequest() {
   btn.disabled = true;
   btn.textContent = "Requesting...";
 
-  const { error } = await supabase.from("requests").insert({ query: q });
+  const { error } = await sb.from("requests").insert({ query: q });
 
   btn.disabled = false;
   btn.textContent = "Request download";
@@ -444,10 +446,10 @@ async function submitSearchRequest() {
 async function toggleLikeSong(songId) {
   if (likedIds.has(songId)) {
     likedIds.delete(songId);
-    await supabase.from("likes").delete().eq("song_id", songId);
+    await sb.from("likes").delete().eq("song_id", songId);
   } else {
     likedIds.add(songId);
-    await supabase.from("likes").upsert({ song_id: songId });
+    await sb.from("likes").upsert({ song_id: songId });
   }
   renderCurrentView();
   updatePlayerHeart();
@@ -481,7 +483,7 @@ function closeModal() {
 async function createPlaylist() {
   const name = document.getElementById("playlistName").value.trim();
   if (!name) return;
-  const { data, error } = await supabase.from("playlists").insert({ name }).select().single();
+  const { data, error } = await sb.from("playlists").insert({ name }).select().single();
   if (error) { toast("Couldn't create playlist: " + error.message, "error"); return; }
   playlists.push(data);
   playlistSongIds[data.id] = new Set();
@@ -514,7 +516,7 @@ function closeAddModal() {
 
 async function addSongToPlaylist(playlistId, songId, btnEl) {
   if (playlistSongIds[playlistId]?.has(songId)) return;
-  const { error } = await supabase.from("playlist_songs").insert({ playlist_id: playlistId, song_id: songId });
+  const { error } = await sb.from("playlist_songs").insert({ playlist_id: playlistId, song_id: songId });
   if (error) { toast("Couldn't add song: " + error.message, "error"); return; }
   if (!playlistSongIds[playlistId]) playlistSongIds[playlistId] = new Set();
   playlistSongIds[playlistId].add(songId);
@@ -535,7 +537,7 @@ function closeDeleteModal() {
 
 async function confirmDeletePlaylist() {
   if (!pendingDeletePlaylistId) return;
-  const { error } = await supabase.from("playlists").delete().eq("id", pendingDeletePlaylistId);
+  const { error } = await sb.from("playlists").delete().eq("id", pendingDeletePlaylistId);
   if (error) { toast("Couldn't delete playlist: " + error.message, "error"); return; }
   playlists = playlists.filter((p) => p.id !== pendingDeletePlaylistId);
   delete playlistSongIds[pendingDeletePlaylistId];
@@ -551,7 +553,7 @@ async function confirmDeletePlaylist() {
 async function startMix(songId) {
   const song = songs.find((s) => s.id === songId);
   if (!song) return;
-  const { error } = await supabase.from("mixes").insert({ seed_song_id: songId, track_limit: 8 });
+  const { error } = await sb.from("mixes").insert({ seed_song_id: songId, track_limit: 8 });
   if (error) { toast("Couldn't start mix: " + error.message, "error"); return; }
   toast(`Building a mix from "${song.title}"...`, "success");
 }
@@ -735,3 +737,5 @@ function escapeHtml(str) {
 
 // ============================================================
 document.addEventListener("DOMContentLoaded", init);
+
+})();
