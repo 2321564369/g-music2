@@ -26,6 +26,7 @@ let searching = false;
 let searchDebounceTimer = null;
 let pendingPlay = null;         // { youtube_id, title, artist, thumbnail } — auto-play once it lands in songs
 let readyToPlaySongId = null;   // set when autoplay was blocked by the browser; highlights the row to tap
+let mixesByPlaylist = {};       // { playlistId: mixRow } — for triggering "continue this mix" near the end
 
 let queue = [];                 // ordered list of song ids for current context
 let currentIndex = -1;
@@ -83,6 +84,10 @@ async function loadPlaylists() {
     if (!playlistSongIds[row.playlist_id]) playlistSongIds[row.playlist_id] = new Set();
     playlistSongIds[row.playlist_id].add(row.song_id);
   }
+
+  const { data: mixRows } = await sb.from("mixes").select("*").not("playlist_id", "is", null);
+  mixesByPlaylist = {};
+  for (const m of mixRows || []) mixesByPlaylist[m.playlist_id] = m;
 }
 
 async function refreshPlaylistMembership(playlistId) {
@@ -156,6 +161,25 @@ function subscribeRealtime() {
       if (currentView === "playlist" && currentPlaylistId === playlist_id) renderCurrentView();
     })
     .subscribe();
+
+  sb
+    .channel("mixes-feed")
+    .on("postgres_changes", { event: "UPDATE", schema: "public", table: "mixes" }, (payload) => {
+      if (payload.new.playlist_id) mixesByPlaylist[payload.new.playlist_id] = payload.new;
+    })
+    .subscribe();
+}
+
+// Call when getting close to the end of a mix playlist's queue — requests the
+// next small batch instead of the mix just dead-ending. Safe to call repeatedly;
+// no-ops if a batch is already in flight or the mix has hit its cap.
+async function maybeContinueMix(playlistId) {
+  const mix = mixesByPlaylist[playlistId];
+  if (!mix || !mix.active || mix.status === "pending" || mix.status === "processing") return;
+
+  mix.status = "pending"; // optimistic, prevents double-triggering before the realtime update lands
+  const { error } = await sb.from("mixes").update({ status: "pending" }).eq("id", mix.id);
+  if (error) console.error("Couldn't continue mix:", error.message);
 }
 
 // ============================================================
@@ -673,10 +697,13 @@ async function startMix(songId) {
   playlistSongIds[playlist.id] = new Set();
   renderPlaylistSidebar();
 
-  const { error: mixError } = await sb
+  const { data: mixRow, error: mixError } = await sb
     .from("mixes")
-    .insert({ seed_song_id: songId, track_limit: 8, playlist_id: playlist.id });
+    .insert({ seed_song_id: songId, track_limit: 5, max_total: 30, playlist_id: playlist.id })
+    .select()
+    .single();
   if (mixError) { toast("Couldn't start mix: " + mixError.message, "error"); return; }
+  mixesByPlaylist[playlist.id] = mixRow;
 
   toast(`Building "${playlistName}"...`, "success");
   loadPlaylist(playlist.id);
@@ -705,6 +732,10 @@ function playSong(songId, isAutoplayAttempt = false) {
   updatePlayerHeart();
   renderCurrentView();
   ensureAudioGraph();
+
+  if (currentView === "playlist" && currentPlaylistId && currentIndex >= queue.length - 2) {
+    maybeContinueMix(currentPlaylistId);
+  }
 
   if (playPromise && typeof playPromise.catch === "function") {
     playPromise.catch((err) => {
