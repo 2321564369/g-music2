@@ -25,6 +25,7 @@ let searchResults = [];         // live YouTube results for the current query
 let searching = false;
 let searchDebounceTimer = null;
 let pendingPlay = null;         // { youtube_id, title, artist, thumbnail } — auto-play once it lands in songs
+let readyToPlaySongId = null;   // set when autoplay was blocked by the browser; highlights the row to tap
 
 let queue = [];                 // ordered list of song ids for current context
 let currentIndex = -1;
@@ -108,7 +109,7 @@ function subscribeRealtime() {
       if (pendingPlay && payload.new.youtube_id === pendingPlay.youtube_id) {
         pendingPlay = null;
         queue = [payload.new.id, ...queue.filter((id) => id !== payload.new.id)];
-        playSong(payload.new.id);
+        playSong(payload.new.id, /* isAutoplayAttempt */ true);
       }
 
       renderCurrentView();
@@ -132,6 +133,16 @@ function subscribeRealtime() {
         }
       }
       renderRequestQueue();
+    })
+    .subscribe();
+
+  sb
+    .channel("playlist-songs-feed")
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: "playlist_songs" }, (payload) => {
+      const { playlist_id, song_id } = payload.new;
+      if (!playlistSongIds[playlist_id]) playlistSongIds[playlist_id] = new Set();
+      playlistSongIds[playlist_id].add(song_id);
+      if (currentView === "playlist" && currentPlaylistId === playlist_id) renderCurrentView();
     })
     .subscribe();
 }
@@ -638,9 +649,26 @@ async function confirmDeletePlaylist() {
 async function startMix(songId) {
   const song = songs.find((s) => s.id === songId);
   if (!song) return;
-  const { error } = await sb.from("mixes").insert({ seed_song_id: songId, track_limit: 8 });
-  if (error) { toast("Couldn't start mix: " + error.message, "error"); return; }
-  toast(`Building a mix from "${song.title}"...`, "success");
+
+  const playlistName = `Mix — ${song.title}`;
+  const { data: playlist, error: playlistError } = await sb
+    .from("playlists")
+    .insert({ name: playlistName })
+    .select()
+    .single();
+  if (playlistError) { toast("Couldn't create mix playlist: " + playlistError.message, "error"); return; }
+
+  playlists.push(playlist);
+  playlistSongIds[playlist.id] = new Set();
+  renderPlaylistSidebar();
+
+  const { error: mixError } = await sb
+    .from("mixes")
+    .insert({ seed_song_id: songId, track_limit: 8, playlist_id: playlist.id });
+  if (mixError) { toast("Couldn't start mix: " + mixError.message, "error"); return; }
+
+  toast(`Building "${playlistName}"...`, "success");
+  loadPlaylist(playlist.id);
 }
 
 function startMixFromCurrent() {
@@ -653,18 +681,33 @@ function startMixFromCurrent() {
 // Playback
 // ============================================================
 
-function playSong(songId) {
+function playSong(songId, isAutoplayAttempt = false) {
   const song = songs.find((s) => s.id === songId);
   if (!song) return;
   currentIndex = queue.indexOf(songId);
   audio.src = song.storage_path;
   audio.preload = document.getElementById("cachingToggle").checked ? "auto" : "none";
-  audio.play();
+
+  const playPromise = audio.play();
   document.getElementById("nowPlaying").textContent = `${song.artist} - ${song.title}`;
   document.getElementById("cover").src = song.cover_path || document.getElementById("cover").src;
   updatePlayerHeart();
   renderCurrentView();
   ensureAudioGraph();
+
+  if (playPromise && typeof playPromise.catch === "function") {
+    playPromise.catch((err) => {
+      if (isAutoplayAttempt) {
+        // Browser blocked autoplay because this wasn't a direct click — normal and
+        // expected once the download finishes seconds after the original click.
+        readyToPlaySongId = songId;
+        toast(`"${song.title}" is ready — tap it to play.`, "success");
+        renderCurrentView();
+      } else {
+        toast("Couldn't play that: " + err.message, "error");
+      }
+    });
+  }
 }
 
 function toggle() {
