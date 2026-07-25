@@ -27,9 +27,19 @@ def main():
         supabase.table("songs").select("*").lt("uploaded_at", cutoff).execute().data
     )
     liked_ids = {row["song_id"] for row in supabase.table("likes").select("song_id").execute().data}
+
+    # Only real, user-made playlists protect a song from cleanup. Auto-generated
+    # mix playlists (named "Mix — <song>") don't count — mixes are meant to be
+    # temporary listening sessions, not permanent collections.
+    playlist_rows = (
+        supabase.table("playlist_songs").select("song_id, playlists(name)").execute().data
+    )
     playlisted_ids = {
-        row["song_id"] for row in supabase.table("playlist_songs").select("song_id").execute().data
+        row["song_id"]
+        for row in playlist_rows
+        if row.get("playlists") and not row["playlists"]["name"].startswith("Mix — ")
     }
+
     keep_ids = liked_ids | playlisted_ids
 
     deleted = 0
