@@ -179,7 +179,10 @@ async function maybeContinueMix(playlistId) {
 
   mix.status = "pending"; // optimistic, prevents double-triggering before the realtime update lands
   const { error } = await sb.from("mixes").update({ status: "pending" }).eq("id", mix.id);
-  if (error) console.error("Couldn't continue mix:", error.message);
+  if (error) {
+    mix.status = "done"; // revert the optimistic flip since it didn't actually take
+    toast("Couldn't continue mix: " + error.message, "error");
+  }
 }
 
 // ============================================================
