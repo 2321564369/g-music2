@@ -20,7 +20,7 @@ jobs:
       - name: Install python deps
         run: pip install yt-dlp supabase requests
 
-       - name: Run downloader
+      - name: Run downloader
         env:
           YOUTUBE_ID: ${{ github.event.client_payload.youtube_id }}
           QUERY: ${{ github.event.client_payload.query }}
