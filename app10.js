@@ -13,6 +13,7 @@ let songs = [];                 // all songs from the songs table
 let likedIds = new Set();       // song ids the user has liked
 let playlists = [];             // [{id, name}]
 let playlistSongIds = {};       // { playlistId: Set(songId) }
+let playlistSongOrder = {};     // { playlistId: Map(songId -> added_at) } — preserves queue order
 let activeRequests = [];        // pending/processing rows from requests table
 
 let currentView = "all";        // all | artists | liked | playlist
@@ -79,10 +80,16 @@ async function loadPlaylists() {
 
   const { data: links } = await sb.from("playlist_songs").select("*");
   playlistSongIds = {};
-  for (const p of playlists) playlistSongIds[p.id] = new Set();
+  playlistSongOrder = {};
+  for (const p of playlists) {
+    playlistSongIds[p.id] = new Set();
+    playlistSongOrder[p.id] = new Map();
+  }
   for (const row of links || []) {
     if (!playlistSongIds[row.playlist_id]) playlistSongIds[row.playlist_id] = new Set();
+    if (!playlistSongOrder[row.playlist_id]) playlistSongOrder[row.playlist_id] = new Map();
     playlistSongIds[row.playlist_id].add(row.song_id);
+    playlistSongOrder[row.playlist_id].set(row.song_id, row.added_at);
   }
 
   const { data: mixRows } = await sb.from("mixes").select("*").not("playlist_id", "is", null);
@@ -91,9 +98,10 @@ async function loadPlaylists() {
 }
 
 async function refreshPlaylistMembership(playlistId) {
-  const { data, error } = await sb.from("playlist_songs").select("song_id").eq("playlist_id", playlistId);
+  const { data, error } = await sb.from("playlist_songs").select("song_id, added_at").eq("playlist_id", playlistId);
   if (error) return;
   playlistSongIds[playlistId] = new Set((data || []).map((r) => r.song_id));
+  playlistSongOrder[playlistId] = new Map((data || []).map((r) => [r.song_id, r.added_at]));
   if (currentView === "playlist" && currentPlaylistId === playlistId) renderCurrentView();
 }
 
@@ -155,9 +163,11 @@ function subscribeRealtime() {
   sb
     .channel("playlist-songs-feed")
     .on("postgres_changes", { event: "INSERT", schema: "public", table: "playlist_songs" }, (payload) => {
-      const { playlist_id, song_id } = payload.new;
+      const { playlist_id, song_id, added_at } = payload.new;
       if (!playlistSongIds[playlist_id]) playlistSongIds[playlist_id] = new Set();
+      if (!playlistSongOrder[playlist_id]) playlistSongOrder[playlist_id] = new Map();
       playlistSongIds[playlist_id].add(song_id);
+      playlistSongOrder[playlist_id].set(song_id, added_at);
       if (currentView === "playlist" && currentPlaylistId === playlist_id) renderCurrentView();
     })
     .subscribe();
@@ -240,6 +250,15 @@ function getFilteredSongs() {
   } else if (currentView === "playlist") {
     const ids = playlistSongIds[currentPlaylistId] || new Set();
     list = list.filter((s) => ids.has(s.id));
+
+    if (sortMode === "none") {
+      const order = playlistSongOrder[currentPlaylistId] || new Map();
+      list = [...list].sort((a, b) => {
+        const ta = order.get(a.id) ? new Date(order.get(a.id)).getTime() : 0;
+        const tb = order.get(b.id) ? new Date(order.get(b.id)).getTime() : 0;
+        return ta - tb;
+      });
+    }
   }
 
   if (sortMode === "artist") {
