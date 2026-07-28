@@ -2128,3 +2128,208 @@ input:checked + .toggle-slider:before {
     align-items: flex-start;
   }
 }
+/* ========================================================
+   ON-DEMAND PIPELINE ADDITIONS
+   Append this whole block to the end of the existing style.css.
+   Reuses the same palette: violet #7c3aed/#a78bfa, dark glass panels.
+   ======================================================== */
+
+/* Request prompt under the search bar when a search has no local matches */
+.request-prompt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  padding: 14px 18px;
+  margin-bottom: 20px;
+  background: rgba(167, 139, 250, 0.08);
+  border: 1px solid rgba(167, 139, 250, 0.25);
+  border-radius: 12px;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 14px;
+}
+
+.request-prompt button {
+  padding: 8px 18px;
+  background: linear-gradient(135deg, #7c3aed, #5b21b6);
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.request-prompt button:hover {
+  background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+  transform: translateY(-1px);
+}
+
+.request-prompt button:disabled {
+  opacity: 0.5;
+  cursor: default;
+  transform: none;
+}
+
+/* Sidebar request queue */
+.request-queue {
+  margin-top: 20px;
+  padding-top: 15px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.request-queue-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 10px;
+}
+
+.request-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.75);
+  margin-bottom: 4px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.request-item .mini-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(167, 139, 250, 0.25);
+  border-top-color: #a78bfa;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  flex-shrink: 0;
+}
+
+.request-item.failed {
+  color: #f87171;
+}
+
+.request-item .query-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Ghost song row shown while a request is downloading, inline in the list */
+.song.ghost {
+  opacity: 0.55;
+  cursor: default;
+  pointer-events: none;
+}
+
+.song.ghost .thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(167, 139, 250, 0.08);
+}
+
+.song.ghost .thumb .mini-spinner {
+  width: 20px;
+  height: 20px;
+  border: 3px solid rgba(167, 139, 250, 0.25);
+  border-top-color: #a78bfa;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+/* Mix icon button in the player bar, matches existing icon language */
+.icon.mix::before {
+  content: "";
+  display: block;
+  width: 18px;
+  height: 18px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  filter: drop-shadow(0 0 4px rgba(255,255,255,0.6));
+  background-image: url("data:image/svg+xml;utf8,\
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'>\
+<circle cx='6' cy='18' r='3'/><circle cx='18' cy='6' r='3'/>\
+<path d='M9 18V6.5c0-.5.3-.9.8-1L18 3v3l-7 2v10' fill='none' stroke='white' stroke-width='1.6'/>\
+</svg>");
+}
+
+.icon.mix.active {
+  background: radial-gradient(circle at top left, #fbbf24, #f59e0b 55%, #b45309);
+}
+
+/* Toasts */
+.toast-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 3000;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.toast {
+  padding: 12px 18px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(167, 139, 250, 0.3);
+  color: white;
+  font-size: 14px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(10px);
+  animation: toastIn 0.25s ease;
+  max-width: 320px;
+}
+
+.toast.error {
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+.toast.success {
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* Playlist option delete button, reused pattern from delete-playlist-btn */
+.playlist-option .remove-song-btn {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  font-size: 13px;
+  margin-left: 8px;
+}
+
+.playlist-option .remove-song-btn:hover {
+  color: #ef4444;
+}
+
+/* Current user badge */
+.current-user {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  margin-bottom: 15px;
+  padding: 4px 0;
+}
+
+.current-user:hover {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+@media (max-width: 768px) {
+  .request-prompt {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
