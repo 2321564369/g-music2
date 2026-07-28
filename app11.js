@@ -35,6 +35,7 @@ let shuffleOn = false;
 let autoplayOn = true;
 
 let pendingAddSongId = null;
+let currentUsername = null;
 let pendingDeletePlaylistId = null;
 
 const audio = document.getElementById("audio");
@@ -45,6 +46,8 @@ let audioCtx = null, analyser = null, sourceNode = null;
 // ============================================================
 
 async function init() {
+  document.getElementById("currentUserBadge").textContent = `👤 ${currentUsername} (switch)`;
+
   setConnectionStatus(navigator.onLine);
   window.addEventListener("online", () => setConnectionStatus(true));
   window.addEventListener("offline", () => setConnectionStatus(false));
@@ -61,6 +64,22 @@ async function init() {
   subscribeRealtime();
 }
 
+function saveUsername() {
+  const val = document.getElementById("usernameInput").value.trim();
+  if (!val) return;
+  localStorage.setItem("gm_username", val);
+  currentUsername = val;
+  document.getElementById("usernameModal").style.display = "none";
+  init();
+}
+
+function changeUsername() {
+  const val = prompt("Switch to a different name (this doesn't delete anything, it just switches whose likes/playlists you see):", currentUsername || "");
+  if (!val || !val.trim()) return;
+  localStorage.setItem("gm_username", val.trim());
+  location.reload();
+}
+
 async function loadSongs() {
   const { data, error } = await sb.from("songs").select("*").order("uploaded_at", { ascending: false });
   if (error) { toast("Couldn't load songs: " + error.message, "error"); return; }
@@ -68,17 +87,20 @@ async function loadSongs() {
 }
 
 async function loadLikes() {
-  const { data, error } = await sb.from("likes").select("song_id");
+  const { data, error } = await sb.from("likes").select("song_id").eq("username", currentUsername);
   if (error) return;
   likedIds = new Set((data || []).map((r) => r.song_id));
 }
 
 async function loadPlaylists() {
-  const { data, error } = await sb.from("playlists").select("*").order("created_at");
+  const { data, error } = await sb.from("playlists").select("*").eq("username", currentUsername).order("created_at");
   if (error) return;
   playlists = data || [];
+  const ownPlaylistIds = playlists.map((p) => p.id);
 
-  const { data: links } = await sb.from("playlist_songs").select("*");
+  const { data: links } = ownPlaylistIds.length
+    ? await sb.from("playlist_songs").select("*").in("playlist_id", ownPlaylistIds)
+    : { data: [] };
   playlistSongIds = {};
   playlistSongOrder = {};
   for (const p of playlists) {
@@ -92,9 +114,11 @@ async function loadPlaylists() {
     playlistSongOrder[row.playlist_id].set(row.song_id, row.added_at);
   }
 
-  const { data: mixRows } = await sb.from("mixes").select("*").not("playlist_id", "is", null);
   mixesByPlaylist = {};
-  for (const m of mixRows || []) mixesByPlaylist[m.playlist_id] = m;
+  if (ownPlaylistIds.length) {
+    const { data: mixRows } = await sb.from("mixes").select("*").in("playlist_id", ownPlaylistIds);
+    for (const m of mixRows || []) mixesByPlaylist[m.playlist_id] = m;
+  }
 }
 
 async function refreshPlaylistMembership(playlistId) {
@@ -599,10 +623,13 @@ async function playSearchResult(result, cachedSong) {
 async function toggleLikeSong(songId) {
   if (likedIds.has(songId)) {
     likedIds.delete(songId);
-    await sb.from("likes").delete().eq("song_id", songId);
+    await sb.from("likes").delete().eq("song_id", songId).eq("username", currentUsername);
   } else {
     likedIds.add(songId);
-    await sb.from("likes").upsert({ song_id: songId });
+    await sb.from("likes").upsert(
+      { song_id: songId, username: currentUsername },
+      { onConflict: "song_id,username" }
+    );
   }
   renderCurrentView();
   updatePlayerHeart();
@@ -636,7 +663,7 @@ function closeModal() {
 async function createPlaylist() {
   const name = document.getElementById("playlistName").value.trim();
   if (!name) return;
-  const { data, error } = await sb.from("playlists").insert({ name }).select().single();
+  const { data, error } = await sb.from("playlists").insert({ name, username: currentUsername }).select().single();
   if (error) { toast("Couldn't create playlist: " + error.message, "error"); return; }
   playlists.push(data);
   playlistSongIds[data.id] = new Set();
@@ -710,7 +737,7 @@ async function startMix(songId) {
   const playlistName = `Mix — ${song.title}`;
   const { data: playlist, error: playlistError } = await sb
     .from("playlists")
-    .insert({ name: playlistName })
+    .insert({ name: playlistName, username: currentUsername })
     .select()
     .single();
   if (playlistError) { toast("Couldn't create mix playlist: " + playlistError.message, "error"); return; }
@@ -928,4 +955,12 @@ function escapeHtml(str) {
 }
 
 // ============================================================
-document.addEventListener("DOMContentLoaded", init);
+document.addEventListener("DOMContentLoaded", () => {
+  const stored = localStorage.getItem("gm_username");
+  if (stored) {
+    currentUsername = stored;
+    init();
+  } else {
+    document.getElementById("usernameModal").style.display = "flex";
+  }
+});
