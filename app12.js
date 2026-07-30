@@ -139,6 +139,16 @@ async function loadActiveRequests() {
   activeRequests = data || [];
 }
 
+let renderScheduled = false;
+function scheduleRender() {
+  if (renderScheduled) return;
+  renderScheduled = true;
+  requestAnimationFrame(() => {
+    renderScheduled = false;
+    renderCurrentView();
+  });
+}
+
 // ============================================================
 // Realtime
 // ============================================================
@@ -156,7 +166,7 @@ function subscribeRealtime() {
         playSong(payload.new.id, /* isAutoplayAttempt */ true);
       }
 
-      renderCurrentView();
+      scheduleRender();
 
       if (currentView === "playlist" && currentPlaylistId) {
         setTimeout(() => refreshPlaylistMembership(currentPlaylistId), 1000);
@@ -192,7 +202,7 @@ function subscribeRealtime() {
       if (!playlistSongOrder[playlist_id]) playlistSongOrder[playlist_id] = new Map();
       playlistSongIds[playlist_id].add(song_id);
       playlistSongOrder[playlist_id].set(song_id, added_at);
-      if (currentView === "playlist" && currentPlaylistId === playlist_id) renderCurrentView();
+      if (currentView === "playlist" && currentPlaylistId === playlist_id) scheduleRender();
     })
     .subscribe();
 
@@ -297,6 +307,7 @@ function getFilteredSongs() {
 function renderCurrentView() {
   sortMode = document.getElementById("sortSelect").value;
   const container = document.getElementById("songList");
+  const savedScrollTop = container.scrollTop;
 
   if (searchQuery.trim()) {
     renderSearchResults(container);
@@ -330,6 +341,7 @@ function renderCurrentView() {
   }
 
   queue = list.map((s) => s.id);
+  container.scrollTop = savedScrollTop;
 }
 
 function renderSearchResults(container) {
@@ -534,7 +546,7 @@ function renderRequestQueue() {
     div.innerHTML = `<div class="mini-spinner"></div><span class="query-text">${escapeHtml(r.query || "mix track")}</span>`;
     list.appendChild(div);
   }
-  if (currentView === "all") renderCurrentView();
+  if (currentView === "all") scheduleRender();
 }
 
 // ============================================================
