@@ -1,154 +1,112 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Galaxy Music</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/2321564369/g-music2@main/styles2.css?v=1">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Galaxy Music — Down</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(ellipse at top, #1e1033 0%, #0a0612 60%, #050308 100%);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: #fff;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .stars, .stars2, .stars3 {
+    position: absolute;
+    inset: 0;
+    background-repeat: repeat;
+    z-index: 0;
+  }
+  .stars {
+    background-image: radial-gradient(1px 1px at 20px 30px, #fff, transparent),
+      radial-gradient(1px 1px at 90px 80px, #fff, transparent),
+      radial-gradient(1px 1px at 150px 140px, #fff, transparent),
+      radial-gradient(1px 1px at 200px 60px, #fff, transparent);
+    background-size: 220px 220px;
+    opacity: 0.5;
+    animation: drift 90s linear infinite;
+  }
+  .stars2 {
+    background-image: radial-gradient(1.5px 1.5px at 60px 100px, #a78bfa, transparent),
+      radial-gradient(1.5px 1.5px at 160px 40px, #a78bfa, transparent);
+    background-size: 300px 300px;
+    opacity: 0.4;
+    animation: drift 140s linear infinite reverse;
+  }
+  @keyframes drift {
+    from { transform: translateY(0); }
+    to { transform: translateY(-1000px); }
+  }
+
+  .card {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    max-width: 420px;
+    padding: 48px 36px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(167, 139, 250, 0.25);
+    border-radius: 20px;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  }
+
+  .icon {
+    font-size: 48px;
+    margin-bottom: 18px;
+    display: inline-block;
+    animation: pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.6; transform: scale(0.94); }
+  }
+
+  h1 {
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 10px;
+    background: linear-gradient(135deg, #c4b5fd, #7c3aed);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  p {
+    font-size: 14.5px;
+    line-height: 1.6;
+    color: rgba(255, 255, 255, 0.65);
+    margin-bottom: 8px;
+  }
+
+  .sub {
+    margin-top: 20px;
+    font-size: 12.5px;
+    color: rgba(255, 255, 255, 0.35);
+  }
+</style>
 </head>
 <body>
 
-<div class="galaxy"></div>
+<div class="stars"></div>
+<div class="stars2"></div>
 
-<div class="app">
-<!-- Sidebar -->
-<aside class="sidebar">
-  <h2>🌌 Galaxy Music</h2>
-  <div class="current-user" id="currentUserBadge" onclick="changeUsername()"></div>
-
-  <ul id="playlists">
-    <li class="active" id="allSongsLi" onclick="loadAll()">All Songs</li>
-    <li id="artistsLi" onclick="loadArtists()">🎤 Artists</li>
-    <li id="likedLi" onclick="loadLiked()">❤️ Liked</li>
-  </ul>
-  <ul id="userPlaylists"></ul>
-
-  <button class="new-playlist" onclick="newPlaylist()">＋ New Playlist</button>
-
-  <div id="requestQueue" class="request-queue" style="display:none;">
-    <div class="request-queue-title">⏳ In progress</div>
-    <div id="requestQueueList"></div>
-  </div>
-</aside>
-
-  <!-- Main -->
-  <main class="content">
-    <div class="topbar">
-      <h1 id="viewTitle">All Songs</h1>
-      <div id="connectionStatus" class="connection-status"></div>
-      <div class="search-container">
-        <input type="text" id="searchInput" placeholder="🔍 Search songs, or type a song to request it..." oninput="searchSongs()">
-        <button onclick="clearSearch()" id="clearSearchBtn" style="display:none;">✕</button>
-      </div>
-      <div class="controls-group">
-        <select id="sortSelect" onchange="renderCurrentView()">
-          <option value="none">Sort</option>
-          <option value="artist">Artist</option>
-          <option value="album">Genre</option>
-        </select>
-        <div class="caching-toggle">
-          <span class="toggle-label">💾 Cache</span>
-          <label class="toggle-switch-mini">
-            <input type="checkbox" id="cachingToggle" checked>
-            <span class="toggle-slider-mini"></span>
-          </label>
-        </div>
-      </div>
-    </div>
-
-    <div id="requestPrompt" class="request-prompt" style="display:none;">
-      <span id="requestPromptText"></span>
-      <button onclick="submitSearchRequest()">Request download</button>
-    </div>
-
-    <div id="songList" class="songs"></div>
-  </main>
+<div class="card">
+  <div class="icon">🌌</div>
+  <h1>Galaxy Music is down until furthure notice</h1>
+  <p>Due to lack of a server galaxy music is unable to function</p>
+  <div class="sub">Check back soon. Or buy me a rabery pi</div>
 </div>
 
-<!-- Toasts -->
-<div id="toastContainer" class="toast-container"></div>
-
-<!-- Player -->
-<div class="player">
-  <div class="beat-visualizer-container">
-    <div class="beat-visualizer" id="beatVisualizer"></div>
-  </div>
-
-  <img id="cover" class="cover" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='500' height='500' viewBox='0 0 500 500'%3E%3Crect width='500' height='500' fill='%237c3aed'/%3E%3Ctext x='250' y='250' font-family='Arial' font-size='80' fill='white' text-anchor='middle' dy='.3em'%3EGM%3C/text%3E%3C/svg%3E">
-
-  <div class="now">
-    <div id="nowPlaying">Nothing playing</div>
-  </div>
-
-  <div class="controls">
-    <button class="icon heart" onclick="toggleLike()" id="playerHeartBtn"></button>
-    <button class="icon prev" onclick="prev()"></button>
-    <button class="icon play" onclick="toggle()"></button>
-    <button class="icon next" onclick="next()"></button>
-    <button class="icon shuffle" onclick="toggleShuffle()"></button>
-    <button class="icon autoplay" onclick="toggleAutoplay()"></button>
-    <button class="icon mix" onclick="startMixFromCurrent()" title="Start a mix from this song"></button>
-  </div>
-
-  <input type="range" id="progress" value="0">
-  <div class="timeText" id="timeText">0:00 / 0:00</div>
-
-  <input type="range" id="volume" min="0" max="1" step="0.01" value="0.4">
-
-  <audio id="audio" crossorigin="anonymous"></audio>
-</div>
-
-<!-- Username Modal -->
-<div id="usernameModal" class="modal">
-  <div class="modal-content">
-    <h3>Pick a name</h3>
-    <p style="font-size:13px;color:rgba(255,255,255,0.6);margin-bottom:12px;">
-      This is just a display name to keep your likes and playlists separate from anyone else using this site — not a password. Anyone who knows it can see your stuff too.
-    </p>
-    <input type="text" id="usernameInput" placeholder="Your name">
-    <div class="modal-buttons">
-      <button onclick="saveUsername()">Continue</button>
-    </div>
-  </div>
-</div>
-
-<!-- Playlist Modal -->
-<div id="playlistModal" class="modal">
-  <div class="modal-content">
-    <h3>Create New Playlist</h3>
-    <input type="text" id="playlistName" placeholder="Playlist name">
-    <div class="modal-buttons">
-      <button onclick="createPlaylist()">Create</button>
-      <button onclick="closeModal()">Cancel</button>
-    </div>
-  </div>
-</div>
-
-<!-- Add to Playlist Modal -->
-<div id="addToPlaylistModal" class="modal">
-  <div class="modal-content">
-    <h3>Add to Playlist</h3>
-    <div id="playlistOptions"></div>
-    <div class="modal-buttons">
-      <button onclick="closeAddModal()">Close</button>
-    </div>
-  </div>
-</div>
-
-<!-- Delete Playlist Modal -->
-<div id="deletePlaylistModal" class="modal">
-  <div class="modal-content">
-    <h3>Delete Playlist</h3>
-    <p id="deletePlaylistMessage">Are you sure you want to delete this playlist?</p>
-    <div class="modal-buttons">
-      <button class="danger" onclick="confirmDeletePlaylist()">Delete</button>
-      <button onclick="closeDeleteModal()">Cancel</button>
-    </div>
-  </div>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdn.jsdelivr.net/gh/2321564369/g-music2@main/config2.js?v=1"></script>
-<script src="https://cdn.jsdelivr.net/gh/2321564369/g-music2@main/app12.js?v=1"></script>
 </body>
 </html>
+
+
